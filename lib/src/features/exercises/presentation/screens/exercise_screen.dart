@@ -203,11 +203,10 @@ class _ExerciseScreenState extends ConsumerState<ExerciseScreen> {
       final repository = ref.read(llmEngineRepositoryProvider);
       final fullSentence = questionWithBlank.replaceAll('_____', targetTerm);
       
-      // Few-shot arrow format: Give IT-domain translation examples so the model
-      // learns the expected output pattern before translating the actual sentence.
-      const systemPrompt = 'IT英語を日本語に翻訳してください。日本語のみ出力。';
+      const systemPrompt = 'IT英語を日本語に日本語全文で正確に和訳してください。要約や省略は不可。日本語のみ出力。';
       
-      final userText = 'The team will deploy the hotfix to production tonight. → チームは今夜、本番環境にホットフィックスをデプロイします。\n'
+      final userText = 'In a software project, a fallback solution is used when a specific feature is not available. → ソフトウェアプロジェクトにおいて、特定の機能が利用できない場合には代替手段が使用されます。\n'
+          'The team will deploy the hotfix to production tonight. → チームは今夜、本番環境にホットフィックスをデプロイします。\n'
           'We should cache the API response to reduce latency. → レイテンシーを削減するため、APIレスポンスをキャッシュすべきです。\n'
           'The CI pipeline detected a regression in the latest build. → CIパイプラインが最新ビルドでリグレッションを検出しました。\n\n'
           '$fullSentence →';
