@@ -12,24 +12,28 @@ class FlashcardState {
   final List<Flashcard> allCards;
   final List<Flashcard> sessionDeck;
   final int sessionIndex;
+  final Map<int, bool> sessionAnswers; // key: index in sessionDeck, val: true(known)/false(unknown)
   final bool isLoading;
   final bool isGeneratingAi;
   final String? selectedCategory;
   final FlashcardSessionMode mode;
-  final int sessionKnownCount;
-  final int sessionUnknownCount;
 
   const FlashcardState({
     this.allCards = const [],
     this.sessionDeck = const [],
     this.sessionIndex = 0,
+    this.sessionAnswers = const {},
     this.isLoading = true,
     this.isGeneratingAi = false,
     this.selectedCategory,
     this.mode = FlashcardSessionMode.all,
-    this.sessionKnownCount = 0,
-    this.sessionUnknownCount = 0,
   });
+
+  // Session Statistics
+  int get sessionKnownCount =>
+      sessionAnswers.values.where((v) => v == true).length;
+  int get sessionUnknownCount =>
+      sessionAnswers.values.where((v) => v == false).length;
 
   // Statistics
   int get totalCards => allCards.length;
@@ -70,9 +74,12 @@ class FlashcardState {
   double get learningPercent => totalCards > 0 ? learningCount / totalCards : 0;
   double get newPercent => totalCards > 0 ? newCount / totalCards : 0;
 
-  bool get isSessionComplete => sessionIndex >= sessionDeck.length;
+  bool get isSessionComplete => sessionDeck.isNotEmpty && sessionIndex >= sessionDeck.length;
   Flashcard? get currentCard =>
       sessionIndex < sessionDeck.length ? sessionDeck[sessionIndex] : null;
+
+  bool get canGoPrevious => sessionIndex > 0;
+  bool get canGoNext => sessionIndex < sessionDeck.length - 1;
 
   List<String> get categories {
     final cats = allCards.map((c) => c.category).toSet().toList();
@@ -87,24 +94,22 @@ class FlashcardState {
     List<Flashcard>? allCards,
     List<Flashcard>? sessionDeck,
     int? sessionIndex,
+    Map<int, bool>? sessionAnswers,
     bool? isLoading,
     bool? isGeneratingAi,
     String? Function()? selectedCategory,
     FlashcardSessionMode? mode,
-    int? sessionKnownCount,
-    int? sessionUnknownCount,
   }) {
     return FlashcardState(
       allCards: allCards ?? this.allCards,
       sessionDeck: sessionDeck ?? this.sessionDeck,
       sessionIndex: sessionIndex ?? this.sessionIndex,
+      sessionAnswers: sessionAnswers ?? this.sessionAnswers,
       isLoading: isLoading ?? this.isLoading,
       isGeneratingAi: isGeneratingAi ?? this.isGeneratingAi,
       selectedCategory:
           selectedCategory != null ? selectedCategory() : this.selectedCategory,
       mode: mode ?? this.mode,
-      sessionKnownCount: sessionKnownCount ?? this.sessionKnownCount,
-      sessionUnknownCount: sessionUnknownCount ?? this.sessionUnknownCount,
     );
   }
 }
@@ -209,9 +214,8 @@ class FlashcardController extends Notifier<FlashcardState> {
     state = state.copyWith(
       sessionDeck: deck,
       sessionIndex: 0,
+      sessionAnswers: {},
       mode: mode,
-      sessionKnownCount: 0,
-      sessionUnknownCount: 0,
     );
 
     if (mode == FlashcardSessionMode.ai) {
@@ -274,12 +278,23 @@ class FlashcardController extends Notifier<FlashcardState> {
     }
   }
 
-  /// Mark current card as known and advance
-  Future<void> markCurrentKnown() async {
-    if (state.isSessionComplete) return;
+  /// Change active session index (e.g., when swiping cards)
+  void setSessionIndex(int index) {
+    if (index >= 0 && index <= state.sessionDeck.length) {
+      state = state.copyWith(sessionIndex: index);
+    }
+  }
 
-    final card = state.sessionDeck[state.sessionIndex];
-    card.markKnown();
+  /// Answer card at specific index
+  Future<void> answerCard({required int index, required bool known}) async {
+    if (index < 0 || index >= state.sessionDeck.length) return;
+
+    final card = state.sessionDeck[index];
+    if (known) {
+      card.markKnown();
+    } else {
+      card.markUnknown();
+    }
 
     // Update in allCards
     final updatedAll = state.allCards.map((c) {
@@ -289,33 +304,23 @@ class FlashcardController extends Notifier<FlashcardState> {
 
     await _repository.saveReviewState(card);
 
+    final updatedAnswers = Map<int, bool>.from(state.sessionAnswers);
+    updatedAnswers[index] = known;
+
     state = state.copyWith(
       allCards: updatedAll,
-      sessionIndex: state.sessionIndex + 1,
-      sessionKnownCount: state.sessionKnownCount + 1,
+      sessionAnswers: updatedAnswers,
     );
+  }
+
+  /// Mark current card as known and advance
+  Future<void> markCurrentKnown() async {
+    await answerCard(index: state.sessionIndex, known: true);
   }
 
   /// Mark current card as unknown and advance
   Future<void> markCurrentUnknown() async {
-    if (state.isSessionComplete) return;
-
-    final card = state.sessionDeck[state.sessionIndex];
-    card.markUnknown();
-
-    // Update in allCards
-    final updatedAll = state.allCards.map((c) {
-      if (c.id == card.id) return card;
-      return c;
-    }).toList();
-
-    await _repository.saveReviewState(card);
-
-    state = state.copyWith(
-      allCards: updatedAll,
-      sessionIndex: state.sessionIndex + 1,
-      sessionUnknownCount: state.sessionUnknownCount + 1,
-    );
+    await answerCard(index: state.sessionIndex, known: false);
   }
 
   /// Retry only unknown cards from last session
@@ -328,8 +333,7 @@ class FlashcardController extends Notifier<FlashcardState> {
     state = state.copyWith(
       sessionDeck: unknownCards,
       sessionIndex: 0,
-      sessionKnownCount: 0,
-      sessionUnknownCount: 0,
+      sessionAnswers: {},
     );
   }
 

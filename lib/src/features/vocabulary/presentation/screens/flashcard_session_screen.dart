@@ -17,8 +17,22 @@ class FlashcardSessionScreen extends ConsumerStatefulWidget {
 
 class _FlashcardSessionScreenState
     extends ConsumerState<FlashcardSessionScreen> {
+  late PageController _pageController;
   bool _isFlipped = false;
   bool _showHint = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialIndex = ref.read(flashcardControllerProvider).sessionIndex;
+    _pageController = PageController(initialPage: initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _flipCard() {
     setState(() {
@@ -27,6 +41,8 @@ class _FlashcardSessionScreenState
   }
 
   void _onAnswer(bool known) async {
+    final state = ref.read(flashcardControllerProvider);
+    final currentIndex = state.sessionIndex;
     final controller = ref.read(flashcardControllerProvider.notifier);
 
     setState(() {
@@ -34,14 +50,11 @@ class _FlashcardSessionScreenState
       _showHint = false;
     });
 
-    if (known) {
-      await controller.markCurrentKnown();
-    } else {
-      await controller.markCurrentUnknown();
-    }
+    await controller.answerCard(index: currentIndex, known: known);
 
-    final state = ref.read(flashcardControllerProvider);
-    if (state.isSessionComplete) {
+    final isLastCard = currentIndex >= state.sessionDeck.length - 1;
+    if (isLastCard) {
+      controller.setSessionIndex(state.sessionDeck.length);
       if (mounted) {
         AdService.instance.showInterstitialAd(
           onAdDismissed: () {
@@ -51,6 +64,27 @@ class _FlashcardSessionScreenState
           },
         );
       }
+    } else {
+      if (_pageController.hasClients) {
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+  }
+
+  void _goToPrevious() {
+    final state = ref.read(flashcardControllerProvider);
+    if (state.canGoPrevious && _pageController.hasClients) {
+      setState(() {
+        _isFlipped = false;
+        _showHint = false;
+      });
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -131,7 +165,6 @@ class _FlashcardSessionScreenState
       );
     }
 
-    final currentCard = state.currentCard;
     final displayIndex = (state.sessionIndex + 1).clamp(1, state.sessionDeck.length);
 
     return PopScope(
@@ -158,77 +191,160 @@ class _FlashcardSessionScreenState
                   : 0.0,
               minHeight: 6,
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: currentCard == null
-                    ? const SizedBox.shrink()
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Center(
-                            child: SingleChildScrollView(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  GestureDetector(
-                                    onTap: _flipCard,
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 300),
-                                      transitionBuilder: (Widget child,
-                                          Animation<double> animation) {
-                                        final rotateAnimation =
-                                            Tween(begin: pi, end: 0.0).animate(animation);
-                                        return AnimatedBuilder(
-                                          animation: rotateAnimation,
-                                          child: child,
-                                          builder: (context, child) {
-                                            final isUnder =
-                                                ValueKey(_isFlipped) != child?.key;
-                                            var tilt =
-                                                (animation.value - 0.5).abs() - 0.5;
-                                            tilt *= -0.002;
-                                            final value = isUnder
-                                                ? min(rotateAnimation.value, pi / 2)
-                                                : rotateAnimation.value;
-                                            return Transform(
-                                              transform: Matrix4.rotationY(value)
-                                                ..setEntry(3, 0, tilt),
-                                              alignment: Alignment.center,
-                                              child: child,
-                                            );
-                                          },
-                                        );
-                                      },
-                                      child: _isFlipped
-                                          ? _buildBackCard(
-                                              context, currentCard, constraints)
-                                          : _buildFrontCard(
-                                              context, currentCard, constraints),
-                                    ),
-                                  ),
-                                  const Gap(16),
-                                  Text(
-                                    'タップして${_isFlipped ? "表" : "裏"}面を表示',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+            
+            // Navigation hint
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 16.0, right: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios, size: 16),
+                    onPressed: state.canGoPrevious ? _goToPrevious : null,
+                    tooltip: '前の単語へ',
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.swap_horiz, size: 18, color: Colors.grey.shade600),
+                      const Gap(4),
+                      Text(
+                        '左右スワイプで単語切替',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onPressed: state.canGoNext
+                        ? () {
+                            if (_pageController.hasClients) {
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          }
+                        : null,
+                    tooltip: '次の単語へ',
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: state.sessionDeck.length,
+                onPageChanged: (int index) {
+                  setState(() {
+                    _isFlipped = false;
+                    _showHint = false;
+                  });
+                  ref.read(flashcardControllerProvider.notifier).setSessionIndex(index);
+                },
+                itemBuilder: (context, index) {
+                  final card = state.sessionDeck[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Center(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                GestureDetector(
+                                  onTap: _flipCard,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    transitionBuilder: (Widget child,
+                                        Animation<double> animation) {
+                                      final rotateAnimation =
+                                          Tween(begin: pi, end: 0.0).animate(animation);
+                                      return AnimatedBuilder(
+                                        animation: rotateAnimation,
+                                        child: child,
+                                        builder: (context, child) {
+                                          final isUnder =
+                                              ValueKey(_isFlipped) != child?.key;
+                                          var tilt =
+                                              (animation.value - 0.5).abs() - 0.5;
+                                          tilt *= -0.002;
+                                          final value = isUnder
+                                              ? min(rotateAnimation.value, pi / 2)
+                                              : rotateAnimation.value;
+                                          return Transform(
+                                            transform: Matrix4.rotationY(value)
+                                              ..setEntry(3, 0, tilt),
+                                            alignment: Alignment.center,
+                                            child: child,
+                                          );
+                                        },
+                                      );
+                                    },
+                                    child: _isFlipped
+                                        ? _buildBackCard(
+                                            context, card, constraints)
+                                        : _buildFrontCard(
+                                            context, card, constraints),
+                                  ),
+                                ),
+                                const Gap(16),
+                                Text(
+                                  'タップして${_isFlipped ? "表" : "裏"}面を表示',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
             ),
 
             // Action Buttons
             Padding(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Row(
                 children: [
+                  OutlinedButton.icon(
+                    onPressed: state.canGoPrevious ? _goToPrevious : null,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      side: BorderSide(
+                        color: state.canGoPrevious ? Colors.blue : Colors.grey.shade300,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: Icon(
+                      Icons.undo,
+                      color: state.canGoPrevious ? Colors.blue : Colors.grey,
+                      size: 20,
+                    ),
+                    label: Text(
+                      '前へ',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: state.canGoPrevious ? Colors.blue : Colors.grey,
+                      ),
+                    ),
+                  ),
+                  const Gap(10),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _onAnswer(false),
@@ -243,14 +359,14 @@ class _FlashcardSessionScreenState
                       label: const Text(
                         'まだ不安',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.orange,
                         ),
                       ),
                     ),
                   ),
-                  const Gap(16),
+                  const Gap(10),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _onAnswer(true),
@@ -266,7 +382,7 @@ class _FlashcardSessionScreenState
                       label: const Text(
                         '覚えた！',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
