@@ -233,7 +233,9 @@ class FlashcardController extends Notifier<FlashcardState> {
     try {
       final llmRepo = ref.read(llmEngineRepositoryProvider);
       final aiService = FlashcardAiService(llmRepo);
-      final aiCards = await aiService.generateFlashcards(count: 5);
+      final aiCards = await aiService
+          .generateFlashcards(count: 5)
+          .timeout(const Duration(seconds: 12));
 
       if (aiCards.isNotEmpty) {
         // Save AI cards to repository
