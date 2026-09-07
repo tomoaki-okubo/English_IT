@@ -5,14 +5,44 @@ import 'package:gap/gap.dart';
 import '../controllers/flashcard_controller.dart';
 import '../../domain/entities/flashcard.dart';
 
-class FlashcardHomeScreen extends ConsumerWidget {
+class FlashcardHomeScreen extends ConsumerStatefulWidget {
   const FlashcardHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FlashcardHomeScreen> createState() => _FlashcardHomeScreenState();
+}
+
+class _FlashcardHomeScreenState extends ConsumerState<FlashcardHomeScreen> {
+  bool _isSelectionMode = false;
+  final Set<String> _selectedCardIds = {};
+
+  List<Flashcard> _getManagedCards(FlashcardState state) {
+    var cards = state.allCards
+        .where((c) => c.source == FlashcardSource.user || c.source == FlashcardSource.ai)
+        .toList();
+    if (state.selectedCategory != null) {
+      if (state.selectedCategory == 'AI生成') {
+        cards = cards
+            .where((c) => c.source == FlashcardSource.ai || c.category == 'AI生成')
+            .toList();
+      } else {
+        cards = cards.where((c) => c.category == state.selectedCategory).toList();
+      }
+    }
+    return cards;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(flashcardControllerProvider);
     final controller = ref.read(flashcardControllerProvider.notifier);
     final theme = Theme.of(context);
+
+    final managedCards = _getManagedCards(state);
+
+    // Prune selected IDs that are no longer present in managedCards
+    final managedIds = managedCards.map((c) => c.id).toSet();
+    _selectedCardIds.removeWhere((id) => !managedIds.contains(id));
 
     return Scaffold(
       appBar: AppBar(
@@ -100,24 +130,9 @@ class FlashcardHomeScreen extends ConsumerWidget {
                   const Gap(24),
 
                   // --- User & AI Cards List Header ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '登録・AI生成単語一覧',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => context.push('/flashcards/add'),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('追加'),
-                      ),
-                    ],
-                  ),
+                  _buildUserCardsHeader(context, state, controller, managedCards),
                   const Gap(8),
-                  _buildUserCardsList(context, state, controller),
+                  _buildUserCardsList(context, state, controller, managedCards),
                 ],
               ),
             ),
@@ -281,15 +296,124 @@ class FlashcardHomeScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildUserCardsHeader(
+    BuildContext context,
+    FlashcardState state,
+    FlashcardController controller,
+    List<Flashcard> managedCards,
+  ) {
+    final theme = Theme.of(context);
+
+    if (_isSelectionMode) {
+      final allSelected = managedCards.isNotEmpty &&
+          _selectedCardIds.length == managedCards.length;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: allSelected,
+              tristate: _selectedCardIds.isNotEmpty && !allSelected,
+              onChanged: (bool? checked) {
+                setState(() {
+                  if (checked == true) {
+                    _selectedCardIds.addAll(managedCards.map((c) => c.id));
+                  } else {
+                    _selectedCardIds.clear();
+                  }
+                });
+              },
+            ),
+            Text(
+              '全選択 (${_selectedCardIds.length}/${managedCards.length})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _selectedCardIds.isEmpty
+                  ? null
+                  : () => _confirmBulkDelete(context, controller, managedCards),
+              icon: Icon(
+                Icons.delete_forever,
+                color: _selectedCardIds.isEmpty ? Colors.grey : Colors.red,
+                size: 20,
+              ),
+              label: Text(
+                '一括削除 (${_selectedCardIds.length})',
+                style: TextStyle(
+                  color: _selectedCardIds.isEmpty ? Colors.grey : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'キャンセル',
+              onPressed: () {
+                setState(() {
+                  _isSelectionMode = false;
+                  _selectedCardIds.clear();
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          '登録・AI生成単語一覧',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Row(
+          children: [
+            if (managedCards.isNotEmpty) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isSelectionMode = true;
+                    _selectedCardIds.clear();
+                  });
+                },
+                icon: const Icon(Icons.checklist, size: 18),
+                label: const Text('選択削除'),
+              ),
+              const Gap(8),
+            ],
+            TextButton.icon(
+              onPressed: () => context.push('/flashcards/add'),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('追加'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildUserCardsList(
     BuildContext context,
     FlashcardState state,
     FlashcardController controller,
+    List<Flashcard> managedCards,
   ) {
-    final managedCards = state.allCards
-        .where((c) => c.source == FlashcardSource.user || c.source == FlashcardSource.ai)
-        .toList();
-
     if (managedCards.isEmpty) {
       return Card(
         color: Colors.grey.shade50,
@@ -313,7 +437,38 @@ class FlashcardHomeScreen extends ConsumerWidget {
       separatorBuilder: (ctx, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final card = managedCards[index];
+        final isSelected = _selectedCardIds.contains(card.id);
+
         return ListTile(
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: _isSelectionMode ? 4 : 16,
+            vertical: 0,
+          ),
+          onTap: _isSelectionMode
+              ? () {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedCardIds.remove(card.id);
+                    } else {
+                      _selectedCardIds.add(card.id);
+                    }
+                  });
+                }
+              : null,
+          leading: _isSelectionMode
+              ? Checkbox(
+                  value: isSelected,
+                  onChanged: (bool? checked) {
+                    setState(() {
+                      if (checked == true) {
+                        _selectedCardIds.add(card.id);
+                      } else {
+                        _selectedCardIds.remove(card.id);
+                      }
+                    });
+                  },
+                )
+              : null,
           title: Row(
             children: [
               Expanded(
@@ -327,10 +482,12 @@ class FlashcardHomeScreen extends ConsumerWidget {
             ],
           ),
           subtitle: Text('${card.meaning} (${card.category})'),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: () => _confirmDelete(context, controller, card),
-          ),
+          trailing: _isSelectionMode
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => _confirmDelete(context, controller, card),
+                ),
         );
       },
     );
@@ -396,6 +553,51 @@ class FlashcardHomeScreen extends ConsumerWidget {
               Navigator.pop(ctx);
             },
             child: const Text('削除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBulkDelete(
+    BuildContext context,
+    FlashcardController controller,
+    List<Flashcard> managedCards,
+  ) {
+    final count = _selectedCardIds.length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('単語の一括削除'),
+        content: Text('選択した $count 件の単語カードを削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              final idsToDelete = _selectedCardIds.toList();
+              await controller.deleteUserCards(idsToDelete);
+              if (mounted) {
+                setState(() {
+                  _isSelectionMode = false;
+                  _selectedCardIds.clear();
+                });
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('$count 件の単語を削除しました'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              '一括削除',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

@@ -130,11 +130,18 @@ class FlashcardController extends Notifier<FlashcardState> {
   }
 
   Future<void> _loadCards() async {
+    // 0. Load deleted card IDs
+    final deletedIds = await _repository.loadDeletedCardIds();
+
     // 1. Generate seed cards
-    final seedCards = FlashcardSeedsData.generateFromDrillSeeds();
+    final seedCards = FlashcardSeedsData.generateFromDrillSeeds()
+        .where((c) => !deletedIds.contains(c.id))
+        .toList();
 
     // 2. Load user/AI cards from Hive
-    final userCards = await _repository.loadUserCards();
+    final userCards = (await _repository.loadUserCards())
+        .where((c) => !deletedIds.contains(c.id))
+        .toList();
 
     // 3. Load review states
     final reviewStates = await _repository.loadReviewStates();
@@ -351,11 +358,17 @@ class FlashcardController extends Notifier<FlashcardState> {
     state = state.copyWith(allCards: [...state.allCards, card]);
   }
 
-  /// Delete a user-created card
+  /// Delete a card by ID
   Future<void> deleteUserCard(String id) async {
-    await _repository.deleteCard(id);
+    await deleteUserCards([id]);
+  }
+
+  /// Bulk delete cards by IDs
+  Future<void> deleteUserCards(List<String> ids) async {
+    await _repository.deleteCards(ids);
+    final idSet = ids.toSet();
     state = state.copyWith(
-      allCards: state.allCards.where((c) => c.id != id).toList(),
+      allCards: state.allCards.where((c) => !idSet.contains(c.id)).toList(),
     );
   }
 

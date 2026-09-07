@@ -6,6 +6,7 @@ import '../../domain/entities/flashcard.dart';
 class FlashcardRepository {
   static const String _userCardsBoxName = 'flashcard_user_cards';
   static const String _reviewStateBoxName = 'flashcard_review_state';
+  static const String _deletedCardIdsBoxName = 'flashcard_deleted_ids';
 
   /// Load all user-created and AI-generated cards from Hive
   Future<List<Flashcard>> loadUserCards() async {
@@ -19,16 +20,31 @@ class FlashcardRepository {
     return cards;
   }
 
+  /// Load set of deleted card IDs
+  Future<Set<String>> loadDeletedCardIds() async {
+    final box = await _openBox(_deletedCardIdsBoxName);
+    return box.values.toSet();
+  }
+
   /// Save a user-created or AI-generated card
   Future<void> saveCard(Flashcard card) async {
     final box = await _openBox(_userCardsBoxName);
     await box.put(card.id, card.toJson());
   }
 
-  /// Delete a user-created card
+  /// Delete a card by ID
   Future<void> deleteCard(String id) async {
-    final box = await _openBox(_userCardsBoxName);
-    await box.delete(id);
+    await deleteCards([id]);
+  }
+
+  /// Bulk delete cards by ID
+  Future<void> deleteCards(List<String> ids) async {
+    final userBox = await _openBox(_userCardsBoxName);
+    final deletedBox = await _openBox(_deletedCardIdsBoxName);
+    for (final id in ids) {
+      await userBox.delete(id);
+      await deletedBox.put(id, id);
+    }
   }
 
   /// Load review state for all cards (keyed by card id)
