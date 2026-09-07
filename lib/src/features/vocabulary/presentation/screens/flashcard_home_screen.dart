@@ -89,7 +89,7 @@ class FlashcardHomeScreen extends ConsumerWidget {
                   _buildModeCard(
                     context,
                     title: 'AIで新しいIT単語を自動生成',
-                    subtitle: 'On-Device LLMがIT実務単語5語をその場で生成して学習',
+                    subtitle: 'AIがIT実務単語5語をその場で生成して学習',
                     icon: Icons.auto_awesome,
                     color: Colors.purple,
                     onTap: () {
@@ -99,12 +99,12 @@ class FlashcardHomeScreen extends ConsumerWidget {
                   ),
                   const Gap(24),
 
-                  // --- User Custom Cards List Header ---
+                  // --- User & AI Cards List Header ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '登録済み単語一覧',
+                        '登録・AI生成単語一覧',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -286,18 +286,18 @@ class FlashcardHomeScreen extends ConsumerWidget {
     FlashcardState state,
     FlashcardController controller,
   ) {
-    final userCards = state.allCards
-        .where((c) => c.source == FlashcardSource.user)
+    final managedCards = state.allCards
+        .where((c) => c.source == FlashcardSource.user || c.source == FlashcardSource.ai)
         .toList();
 
-    if (userCards.isEmpty) {
+    if (managedCards.isEmpty) {
       return Card(
         color: Colors.grey.shade50,
         child: const Padding(
           padding: EdgeInsets.all(16.0),
           child: Center(
             child: Text(
-              'オリジナル単語カードはまだありません。\n「+」ボタンから自分だけのIT英語単語を追加できます。',
+              '追加した単語やAIで生成した単語カードはまだありません。\n「+」ボタンから単語を追加するか、「AIで新しいIT単語を自動生成」を試してみてください。',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
@@ -309,12 +309,23 @@ class FlashcardHomeScreen extends ConsumerWidget {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: userCards.length,
+      itemCount: managedCards.length,
       separatorBuilder: (ctx, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
-        final card = userCards[index];
+        final card = managedCards[index];
         return ListTile(
-          title: Text(card.term, style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  card.term,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Gap(8),
+              _buildManagedCardBadge(card.source),
+            ],
+          ),
           subtitle: Text('${card.meaning} (${card.category})'),
           trailing: IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -323,6 +334,45 @@ class FlashcardHomeScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Widget _buildManagedCardBadge(FlashcardSource source) {
+    if (source == FlashcardSource.ai) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.purple.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.purple.shade200),
+        ),
+        child: const Text(
+          'AI生成',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.purple,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    } else if (source == FlashcardSource.user) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.teal.shade200),
+        ),
+        child: const Text(
+          'カスタム',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.teal,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   void _confirmDelete(

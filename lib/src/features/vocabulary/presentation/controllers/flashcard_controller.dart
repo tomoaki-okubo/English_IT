@@ -41,6 +41,11 @@ class FlashcardState {
   // Category Filtered Statistics
   List<Flashcard> get filteredCards {
     if (selectedCategory == null) return allCards;
+    if (selectedCategory == 'AI生成') {
+      return allCards
+          .where((c) => c.source == FlashcardSource.ai || c.category == 'AI生成')
+          .toList();
+    }
     return allCards.where((c) => c.category == selectedCategory).toList();
   }
 
@@ -70,7 +75,11 @@ class FlashcardState {
       sessionIndex < sessionDeck.length ? sessionDeck[sessionIndex] : null;
 
   List<String> get categories {
-    final cats = allCards.map((c) => c.category).toSet().toList()..sort();
+    final cats = allCards.map((c) => c.category).toSet().toList();
+    if (allCards.any((c) => c.source == FlashcardSource.ai) && !cats.contains('AI生成')) {
+      cats.add('AI生成');
+    }
+    cats.sort();
     return cats;
   }
 
@@ -206,6 +215,11 @@ class FlashcardController extends Notifier<FlashcardState> {
   List<Flashcard> _filteredCards() {
     if (state.selectedCategory == null) {
       return List<Flashcard>.from(state.allCards);
+    }
+    if (state.selectedCategory == 'AI生成') {
+      return state.allCards
+          .where((c) => c.source == FlashcardSource.ai || c.category == 'AI生成')
+          .toList();
     }
     return state.allCards
         .where((c) => c.category == state.selectedCategory)

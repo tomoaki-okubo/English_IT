@@ -85,7 +85,7 @@ class _FlashcardSessionScreenState
               CircularProgressIndicator(),
               Gap(16),
               Text(
-                'On-Device LLMがIT実務単語を生成しています...\n(数秒お待ちください)',
+                'AIがIT実務単語を生成しています...\n(数秒お待ちください)',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15),
               ),
