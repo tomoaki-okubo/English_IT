@@ -13,34 +13,38 @@ class ResponsiveScaffold extends StatelessWidget {
     final isWideScreen = MediaQuery.of(context).size.width >= 600;
     
     final location = GoRouterState.of(context).uri.path;
-    int currentIndex = 0;
-    if (location.startsWith('/chat')) {
-      currentIndex = 1;
+    int activeTabIndex = -1;
+    if (location == '/') {
+      activeTabIndex = 0;
+    } else if (location.startsWith('/chat')) {
+      activeTabIndex = 1;
     } else if (location.startsWith('/exercise')) {
-      currentIndex = 2;
+      activeTabIndex = 2;
     } else if (location.startsWith('/saved-drills')) {
-      currentIndex = 3;
+      activeTabIndex = 3;
     } else if (location.startsWith('/flashcards')) {
-      currentIndex = 4;
+      activeTabIndex = 4;
     }
 
+    final selectedIndexForDisplay = activeTabIndex < 0 ? 0 : activeTabIndex;
+
     void onNavigate(int index) {
-      if (index == currentIndex) return;
+      if (index == activeTabIndex) return;
       switch (index) {
         case 0:
           context.go('/');
           break;
         case 1:
-          context.push('/chat');
+          context.go('/chat');
           break;
         case 2:
-          context.push('/exercise');
+          context.go('/exercise');
           break;
         case 3:
-          context.push('/saved-drills');
+          context.go('/saved-drills');
           break;
         case 4:
-          context.push('/flashcards');
+          context.go('/flashcards');
           break;
       }
     }
@@ -60,7 +64,7 @@ class ResponsiveScaffold extends StatelessWidget {
                           constraints: BoxConstraints(minHeight: constraints.maxHeight),
                           child: IntrinsicHeight(
                             child: NavigationRail(
-                              selectedIndex: currentIndex,
+                              selectedIndex: selectedIndexForDisplay,
                               onDestinationSelected: onNavigate,
                               labelType: NavigationRailLabelType.all,
                               leading: Padding(
@@ -120,7 +124,7 @@ class ResponsiveScaffold extends StatelessWidget {
         children: [
           const BannerAdWidget(),
           NavigationBar(
-            selectedIndex: currentIndex,
+            selectedIndex: selectedIndexForDisplay,
             onDestinationSelected: onNavigate,
             destinations: const [
               NavigationDestination(
