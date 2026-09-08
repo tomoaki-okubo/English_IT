@@ -86,7 +86,7 @@ class BrseAiCoachApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'BrSE AI Coach',
+      title: 'IT英語ドリル-BrSEへの道-',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
