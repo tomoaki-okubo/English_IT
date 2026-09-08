@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/flashcard.dart';
 import '../../data/sources/flashcard_seeds_data.dart';
 import '../../data/repositories/flashcard_repository.dart';
-import '../../data/services/flashcard_ai_service.dart';
-import '../../../llm_engine/domain/providers.dart';
 
 // --- State ---
 
@@ -14,7 +12,6 @@ class FlashcardState {
   final int sessionIndex;
   final Map<int, bool> sessionAnswers; // key: index in sessionDeck, val: true(known)/false(unknown)
   final bool isLoading;
-  final bool isGeneratingAi;
   final String? selectedCategory;
   final FlashcardSessionMode mode;
 
@@ -24,7 +21,6 @@ class FlashcardState {
     this.sessionIndex = 0,
     this.sessionAnswers = const {},
     this.isLoading = true,
-    this.isGeneratingAi = false,
     this.selectedCategory,
     this.mode = FlashcardSessionMode.all,
   });
@@ -96,7 +92,6 @@ class FlashcardState {
     int? sessionIndex,
     Map<int, bool>? sessionAnswers,
     bool? isLoading,
-    bool? isGeneratingAi,
     String? Function()? selectedCategory,
     FlashcardSessionMode? mode,
   }) {
@@ -106,7 +101,6 @@ class FlashcardState {
       sessionIndex: sessionIndex ?? this.sessionIndex,
       sessionAnswers: sessionAnswers ?? this.sessionAnswers,
       isLoading: isLoading ?? this.isLoading,
-      isGeneratingAi: isGeneratingAi ?? this.isGeneratingAi,
       selectedCategory:
           selectedCategory != null ? selectedCategory() : this.selectedCategory,
       mode: mode ?? this.mode,
@@ -114,7 +108,7 @@ class FlashcardState {
   }
 }
 
-enum FlashcardSessionMode { all, unlearned, ai }
+enum FlashcardSessionMode { all, unlearned }
 
 // --- Provider ---
 
@@ -203,10 +197,6 @@ class FlashcardController extends Notifier<FlashcardState> {
             .where((c) => c.status != FlashcardStatus.mastered)
             .toList();
         break;
-      case FlashcardSessionMode.ai:
-        // AI deck will be populated asynchronously
-        deck = [];
-        break;
     }
 
     deck.shuffle();
@@ -217,10 +207,6 @@ class FlashcardController extends Notifier<FlashcardState> {
       sessionAnswers: {},
       mode: mode,
     );
-
-    if (mode == FlashcardSessionMode.ai) {
-      _generateAiCards();
-    }
   }
 
   List<Flashcard> _filteredCards() {
@@ -235,47 +221,6 @@ class FlashcardController extends Notifier<FlashcardState> {
     return state.allCards
         .where((c) => c.category == state.selectedCategory)
         .toList();
-  }
-
-  /// Generate AI flashcards
-  Future<void> _generateAiCards() async {
-    state = state.copyWith(isGeneratingAi: true);
-
-    try {
-      final llmRepo = ref.read(llmEngineRepositoryProvider);
-      final aiService = FlashcardAiService(llmRepo);
-      final aiCards = await aiService
-          .generateFlashcards(count: 5)
-          .timeout(const Duration(seconds: 12));
-
-      if (aiCards.isNotEmpty) {
-        // Save AI cards to repository
-        for (final card in aiCards) {
-          await _repository.saveCard(card);
-        }
-
-        // Update allCards and sessionDeck
-        final updatedAll = [...state.allCards, ...aiCards];
-        state = state.copyWith(
-          allCards: updatedAll,
-          sessionDeck: aiCards,
-          isGeneratingAi: false,
-        );
-      } else {
-        // Fallback: use seed cards
-        final fallbackDeck = _filteredCards()..shuffle();
-        state = state.copyWith(
-          sessionDeck: fallbackDeck.take(10).toList(),
-          isGeneratingAi: false,
-        );
-      }
-    } catch (_) {
-      final fallbackDeck = _filteredCards()..shuffle();
-      state = state.copyWith(
-        sessionDeck: fallbackDeck.take(10).toList(),
-        isGeneratingAi: false,
-      );
-    }
   }
 
   /// Change active session index (e.g., when swiping cards)

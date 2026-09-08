@@ -102,33 +102,6 @@ class _FlashcardSessionScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(flashcardControllerProvider);
 
-    // AI Generation loading state
-    if (state.isGeneratingAi) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('AI単語カード生成中'),
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: _exitSession,
-          ),
-        ),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              Gap(16),
-              Text(
-                'AIがIT実務単語を生成しています...\n(数秒お待ちください。時間がかかりすぎた場合はプリセット単語が表示されます)',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     if (state.sessionDeck.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('単語カード')),

@@ -114,19 +114,6 @@ class _FlashcardHomeScreenState extends ConsumerState<FlashcardHomeScreen> {
                             context.push('/flashcards/session');
                           },
                   ),
-                  const Gap(10),
-
-                  _buildModeCard(
-                    context,
-                    title: 'AIで新しいIT単語を自動生成',
-                    subtitle: 'AIがIT実務単語5語をその場で生成して学習',
-                    icon: Icons.auto_awesome,
-                    color: Colors.purple,
-                    onTap: () {
-                      controller.startSession(FlashcardSessionMode.ai);
-                      context.push('/flashcards/session');
-                    },
-                  ),
                   const Gap(24),
 
                   // --- User & AI Cards List Header ---
@@ -373,7 +360,7 @@ class _FlashcardHomeScreenState extends ConsumerState<FlashcardHomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          '登録・AI生成単語一覧',
+          '登録カスタム単語一覧',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -421,7 +408,7 @@ class _FlashcardHomeScreenState extends ConsumerState<FlashcardHomeScreen> {
           padding: EdgeInsets.all(16.0),
           child: Center(
             child: Text(
-              '追加した単語やAIで生成した単語カードはまだありません。\n「+」ボタンから単語を追加するか、「AIで新しいIT単語を自動生成」を試してみてください。',
+              '追加したカスタム単語カードはまだありません。\n右上または「追加」ボタンから新しい単語を追加できます。',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
