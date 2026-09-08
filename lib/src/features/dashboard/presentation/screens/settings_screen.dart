@@ -5,6 +5,10 @@ import 'package:gap/gap.dart';
 import 'package:hive/hive.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../vocabulary/presentation/controllers/flashcard_controller.dart';
+import '../../../exercises/presentation/controllers/saved_drills_controller.dart';
+import '../controllers/training_activity_controller.dart';
+import '../../../ai_chat/presentation/controllers/chat_controller.dart';
 
 
 // Notification settings state
@@ -346,7 +350,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         leading: const Icon(Icons.info_outline),
                         title: const Text('バージョン'),
                         trailing: Text(
-                          '1.0.0',
+                          '1.0.1',
                           style: TextStyle(
                             color: theme.colorScheme.onSurface
                                 .withValues(alpha: 0.5),
@@ -362,7 +366,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           showLicensePage(
                             context: context,
                             applicationName: 'BrSE AI Coach',
-                            applicationVersion: '1.0.0',
+                            applicationVersion: '1.0.1',
                             applicationLegalese: '© 2026 BrSE AI Coach\nAll rights reserved.',
                           );
                         },
@@ -456,10 +460,140 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     }
                   },
                 ),
-                const Gap(24),
+                const Gap(32),
+
+                // Data Management Section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'データ管理',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.red.shade100),
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete_forever, color: Colors.red),
+                    ),
+                    title: const Text(
+                      '全てのデータをクリア',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '単語カード、AI会話履歴、学習の進捗を初期化します',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    onTap: () => _confirmClearAllData(context),
+                  ),
+                ),
+                const Gap(32),
               ],
             ),
     );
+  }
+
+  void _confirmClearAllData(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            Gap(8),
+            Expanded(
+              child: Text(
+                '全てのデータをクリア',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '保存された単語カード、AI会話履歴、学習の進捗（カレンダー）、ブックマークなどの全てのデータを消去し、アプリを初期状態に戻しますか？\n\nこの操作は取り消せません。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _clearAllData();
+            },
+            child: const Text('データをクリア'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _clearAllData() async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final boxNames = [
+      'chat_history',
+      'personas',
+      'llm_config',
+      'saved_drills',
+      'training_activity',
+      'notification_settings',
+      'flashcard_user_cards',
+      'flashcard_review_state',
+      'flashcard_deleted_ids',
+    ];
+
+    for (final name in boxNames) {
+      try {
+        if (Hive.isBoxOpen(name)) {
+          await Hive.box(name).clear();
+        } else {
+          final box = await Hive.openBox(name);
+          await box.clear();
+        }
+      } catch (_) {}
+    }
+
+    // Refresh riverpod states
+    ref.read(flashcardControllerProvider.notifier).reload();
+    ref.read(savedDrillsControllerProvider.notifier).clearAll();
+    ref.invalidate(trainingActivityControllerProvider);
+    ref.invalidate(chatControllerProvider);
+    ref.read(notificationSettingsProvider.notifier).toggleEnabled(false);
+
+    if (mounted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('全てのデータをクリアしました。'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _buildPermissionWarning(BuildContext context, ThemeData theme) {
