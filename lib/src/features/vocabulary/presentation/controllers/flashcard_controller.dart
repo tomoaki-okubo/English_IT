@@ -326,4 +326,11 @@ class FlashcardController extends Notifier<FlashcardState> {
     state = state.copyWith(isLoading: true);
     await _loadCards();
   }
+
+  /// Clear all user cards and review history, then reload seed cards
+  Future<void> clearAll() async {
+    state = state.copyWith(isLoading: true);
+    await _repository.clearAll();
+    await _loadCards();
+  }
 }

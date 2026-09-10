@@ -291,7 +291,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _buildFeatureCard(
                 context,
                 title: 'IT英語単語カード (Flashcards)',
-                subtitle: '実務必須単語の暗記・AI自動生成・自作単語管理',
+                subtitle: '実務必須単語の暗記・自作単語管理',
                 icon: Icons.style_outlined,
                 color: Colors.teal,
                 onTap: () => context.push('/flashcards'),

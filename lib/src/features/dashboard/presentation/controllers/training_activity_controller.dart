@@ -202,4 +202,17 @@ class TrainingActivityController extends Notifier<TrainingActivityState> {
       selectedDate: DateTime(now.year, now.month, now.day),
     );
   }
+
+  Future<void> clearAll() async {
+    state = state.copyWith(activities: {});
+    try {
+      Box<String>? box;
+      if (Hive.isBoxOpen(boxName)) {
+        box = Hive.box<String>(boxName);
+      } else {
+        box = await Hive.openBox<String>(boxName);
+      }
+      await box.clear();
+    } catch (_) {}
+  }
 }

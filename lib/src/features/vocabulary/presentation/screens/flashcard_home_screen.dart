@@ -359,13 +359,17 @@ class _FlashcardHomeScreenState extends ConsumerState<FlashcardHomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          '登録カスタム単語一覧',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
+        Flexible(
+          child: Text(
+            '登録カスタム単語一覧',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (managedCards.isNotEmpty) ...[
               OutlinedButton.icon(

@@ -47,6 +47,18 @@ class FlashcardRepository {
     }
   }
 
+  /// Clear all stored user cards, review states, and deleted card IDs from Hive
+  Future<void> clearAll() async {
+    final userBox = await _openBox(_userCardsBoxName);
+    await userBox.clear();
+
+    final reviewBox = await _openBox(_reviewStateBoxName);
+    await reviewBox.clear();
+
+    final deletedBox = await _openBox(_deletedCardIdsBoxName);
+    await deletedBox.clear();
+  }
+
   /// Load review state for all cards (keyed by card id)
   Future<Map<String, Flashcard>> loadReviewStates() async {
     final box = await _openBox(_reviewStateBoxName);

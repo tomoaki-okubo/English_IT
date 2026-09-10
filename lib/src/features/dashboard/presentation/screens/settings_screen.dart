@@ -556,40 +556,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _clearAllData() async {
     final messenger = ScaffoldMessenger.of(context);
 
-    final boxNames = [
-      'chat_history',
-      'personas',
-      'llm_config',
-      'saved_drills',
-      'training_activity',
-      'notification_settings',
-      'flashcard_user_cards',
-      'flashcard_review_state',
-      'flashcard_deleted_ids',
-    ];
+    // Clear flashcard data (user-added cards, review states, deleted card IDs)
+    await ref.read(flashcardControllerProvider.notifier).clearAll();
 
-    for (final name in boxNames) {
-      try {
-        if (Hive.isBoxOpen(name)) {
-          await Hive.box(name).clear();
-        } else {
-          final box = await Hive.openBox(name);
-          await box.clear();
-        }
-      } catch (_) {}
-    }
+    // Clear saved drills & bookmarks
+    await ref.read(savedDrillsControllerProvider.notifier).clearAll();
 
-    // Refresh riverpod states
-    ref.read(flashcardControllerProvider.notifier).reload();
-    ref.read(savedDrillsControllerProvider.notifier).clearAll();
-    ref.invalidate(trainingActivityControllerProvider);
+    // Clear training activity logs
+    await ref.read(trainingActivityControllerProvider.notifier).clearAll();
+
+    // Reset AI Chat state
     ref.invalidate(chatControllerProvider);
+
+    // Clear chat history & personas boxes
+    try {
+      if (Hive.isBoxOpen('chat_history')) {
+        await Hive.box('chat_history').clear();
+      }
+      if (Hive.isBoxOpen('personas')) {
+        await Hive.box('personas').clear();
+      }
+    } catch (_) {}
+
+    // Reset notification settings
     ref.read(notificationSettingsProvider.notifier).toggleEnabled(false);
 
     if (mounted) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('全てのデータをクリアしました。'),
+          content: Text('全てのデータ（登録単語・学習履歴・設定）をクリアしました。'),
           duration: Duration(seconds: 2),
         ),
       );
